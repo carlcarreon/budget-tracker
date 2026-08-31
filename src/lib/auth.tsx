@@ -13,7 +13,14 @@ type AuthContextValue = {
   session: Session | null
   user: User | null
   isLoading: boolean
-  signInWithEmail: (email: string) => Promise<{ error: string | null }>
+  signInWithEmail: (
+    email: string,
+    password: string
+  ) => Promise<{ error: string | null }>
+  signUpWithEmail: (
+    email: string,
+    password: string
+  ) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
 
@@ -28,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const init = async () => {
       const { data } = await supabase.auth.getSession()
+
       if (active) {
         setSession(data.session)
         setIsLoading(false)
@@ -36,7 +44,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void init()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession)
       setIsLoading(false)
     })
@@ -47,26 +57,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const value = useMemo<AuthContextValue>(() => ({
-    session,
-    user: session?.user ?? null,
-    isLoading,
-    signInWithEmail: async (email: string) => {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: window.location.origin,
-        },
-      })
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      session,
+      user: session?.user ?? null,
+      isLoading,
 
-      return { error: error?.message ?? null }
-    },
-    signOut: async () => {
-      await supabase.auth.signOut()
-    },
-  }), [isLoading, session])
+      signInWithEmail: async (email: string, password: string) => {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+        return {
+          error: error?.message ?? null,
+        }
+      },
+
+      signUpWithEmail: async (email: string, password: string) => {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+        })
+
+        return {
+          error: error?.message ?? null,
+        }
+      },
+
+      signOut: async () => {
+        await supabase.auth.signOut()
+      },
+    }),
+    [isLoading, session]
+  )
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {

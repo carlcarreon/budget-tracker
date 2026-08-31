@@ -7,6 +7,7 @@ import {
   Routes,
   useLocation,
 } from "react-router-dom"
+import RegisterPage from "./pages/RegisterPage"
 import { AppLayout } from "./components/AppLayout"
 import { AuthProvider, useAuth } from "./lib/auth"
 import { clearBundledSeedIfPresent } from "./lib/localDb"
@@ -46,6 +47,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/" element={<HomePage />} />

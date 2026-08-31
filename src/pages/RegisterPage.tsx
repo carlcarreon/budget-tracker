@@ -1,19 +1,25 @@
 import { useState, type FormEvent } from "react"
 import { Link, Navigate } from "react-router-dom"
-import { LogIn } from "lucide-react"
+import { UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/auth"
 
-export default function LoginPage() {
-  const { session, isLoading, signInWithEmail } = useAuth()
+export default function RegisterPage() {
+  const {
+    session,
+    isLoading,
+    signUpWithEmail,
+  } = useAuth()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [status, setStatus] = useState<string | null>(null)
-  const [isSigningIn, setIsSigningIn] = useState(false)
+  const [isRegistering, setIsRegistering] = useState(false)
 
+  // Automatically go to dashboard after registration/login
   if (!isLoading && session) {
     return <Navigate to="/" replace />
   }
@@ -23,19 +29,43 @@ export default function LoginPage() {
   ) => {
     event.preventDefault()
 
-    setIsSigningIn(true)
     setStatus(null)
 
-    const { error } = await signInWithEmail(
-      email.trim(),
+    const cleanEmail = email.trim()
+
+    if (password !== confirmPassword) {
+      setStatus("Passwords do not match.")
+      return
+    }
+
+    if (password.length < 6) {
+      setStatus("Password must be at least 6 characters.")
+      return
+    }
+
+    setIsRegistering(true)
+
+    const { error } = await signUpWithEmail(
+      cleanEmail,
       password
     )
 
     if (error) {
       setStatus(error)
+      setIsRegistering(false)
+      return
     }
 
-    setIsSigningIn(false)
+    /*
+     * If email confirmation is disabled in Supabase,
+     * signUpWithEmail() creates a session.
+     *
+     * AuthProvider receives the session through
+     * onAuthStateChange(), causing this component to
+     * automatically redirect to "/".
+     */
+
+    setIsRegistering(false)
   }
 
   return (
@@ -46,21 +76,21 @@ export default function LoginPage() {
           {/* Header */}
           <div className="space-y-2 text-center">
             <div className="mx-auto flex size-16 items-center justify-center rounded-3xl bg-blue-500/10 text-blue-600">
-              <LogIn className="h-7 w-7" />
+              <UserPlus className="h-7 w-7" />
             </div>
 
             <div className="space-y-1">
               <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-                Sign in to Budget Track
+                Create your account
               </h1>
 
               <p className="text-sm text-slate-500">
-                Sign in to manage your budget and expenses.
+                Start tracking your budget today.
               </p>
             </div>
           </div>
 
-          {/* Login form */}
+          {/* Registration Form */}
           <form
             className="space-y-4"
             onSubmit={handleSubmit}
@@ -99,11 +129,33 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                autoComplete="current-password"
-                placeholder="Enter your password"
+                autoComplete="new-password"
+                placeholder="At least 6 characters"
                 value={password}
                 onChange={(event) =>
                   setPassword(event.target.value)
+                }
+                required
+              />
+            </div>
+
+            {/* Confirm Password */}
+            <div className="space-y-2">
+              <label
+                className="text-xs font-medium text-slate-700"
+                htmlFor="confirm-password"
+              >
+                Confirm Password
+              </label>
+
+              <Input
+                id="confirm-password"
+                type="password"
+                autoComplete="new-password"
+                placeholder="Enter your password again"
+                value={confirmPassword}
+                onChange={(event) =>
+                  setConfirmPassword(event.target.value)
                 }
                 required
               />
@@ -121,26 +173,27 @@ export default function LoginPage() {
               type="submit"
               className="w-full"
               disabled={
-                isSigningIn ||
+                isRegistering ||
                 !email.trim() ||
-                !password
+                !password ||
+                !confirmPassword
               }
             >
-              {isSigningIn
-                ? "Signing in..."
-                : "Sign in"}
+              {isRegistering
+                ? "Creating account..."
+                : "Create account"}
             </Button>
           </form>
 
-          {/* Register */}
+          {/* Login */}
           <div className="text-center text-sm text-slate-500">
-            Don't have an account?{" "}
+            Already have an account?{" "}
 
             <Link
-              to="/register"
+              to="/login"
               className="font-medium text-blue-600 hover:text-blue-700"
             >
-              Create one
+              Sign in
             </Link>
           </div>
 
