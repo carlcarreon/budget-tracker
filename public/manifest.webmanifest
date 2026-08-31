@@ -1,0 +1,17 @@
+{
+  "name": "Budget Track",
+  "short_name": "Trackers",
+  "description": "Track your orders, expenses, savings, and paylater balances.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7fafc",
+  "theme_color": "#1c4a73",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
