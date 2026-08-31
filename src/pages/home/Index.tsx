@@ -582,7 +582,9 @@ export function HomePage() {
 
   return (
     <div className="space-y-2">
-      
+      <h1 className="text-2xl font-bold text-slate-900">
+        Hello
+      </h1>
 
       {/* TOTAL BALANCE */}
       <Card className="overflow-hidden border-slate-200 bg-white py-4 shadow-sm">
