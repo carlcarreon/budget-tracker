@@ -20,7 +20,10 @@ type AuthContextValue = {
   signUpWithEmail: (
     email: string,
     password: string
-  ) => Promise<{ error: string | null }>
+  ) => Promise<{
+    error: string | null
+    session: Session | null
+  }>
   signOut: () => Promise<void>
 }
 
@@ -34,22 +37,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true
 
     const init = async () => {
-      const { data } = await supabase.auth.getSession()
+      const { data, error } = await supabase.auth.getSession()
 
-      if (active) {
-        setSession(data.session)
-        setIsLoading(false)
+      if (!active) return
+
+      if (error) {
+        console.error("Failed to get session:", error)
       }
+
+      setSession(data.session)
+      setIsLoading(false)
     }
 
     void init()
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession)
-      setIsLoading(false)
-    })
+    } = supabase.auth.onAuthStateChange(
+      (_event, nextSession) => {
+        setSession(nextSession)
+        setIsLoading(false)
+      }
+    )
 
     return () => {
       active = false
@@ -63,30 +72,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: session?.user ?? null,
       isLoading,
 
-      signInWithEmail: async (email: string, password: string) => {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
+      signInWithEmail: async (
+        email: string,
+        password: string
+      ) => {
+        const { error } =
+          await supabase.auth.signInWithPassword({
+            email,
+            password,
+          })
 
         return {
           error: error?.message ?? null,
         }
       },
 
-      signUpWithEmail: async (email: string, password: string) => {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-        })
+      signUpWithEmail: async (
+        email: string,
+        password: string
+      ) => {
+        const { data, error } =
+          await supabase.auth.signUp({
+            email,
+            password,
+          })
+
+        if (error) {
+          console.error("Registration error:", error)
+
+          return {
+            error: error.message,
+            session: null,
+          }
+        }
+
+        if (data.session) {
+          setSession(data.session)
+        }
 
         return {
-          error: error?.message ?? null,
+          error: null,
+          session: data.session,
         }
       },
 
       signOut: async () => {
-        await supabase.auth.signOut()
+        const { error } = await supabase.auth.signOut()
+
+        if (error) {
+          console.error("Sign out error:", error)
+        }
       },
     }),
     [isLoading, session]
@@ -103,7 +138,9 @@ export function useAuth() {
   const context = useContext(AuthContext)
 
   if (!context) {
-    throw new Error("useAuth must be used within AuthProvider")
+    throw new Error(
+      "useAuth must be used within AuthProvider"
+    )
   }
 
   return context

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react"
-import { Link, Navigate } from "react-router-dom"
+import { Link, Navigate, useNavigate } from "react-router-dom"
 import { UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,13 +13,14 @@ export default function RegisterPage() {
     signUpWithEmail,
   } = useAuth()
 
+  const navigate = useNavigate()
+
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [status, setStatus] = useState<string | null>(null)
   const [isRegistering, setIsRegistering] = useState(false)
 
-  // Automatically go to dashboard after registration/login
   if (!isLoading && session) {
     return <Navigate to="/" replace />
   }
@@ -45,27 +46,43 @@ export default function RegisterPage() {
 
     setIsRegistering(true)
 
-    const { error } = await signUpWithEmail(
-      cleanEmail,
-      password
-    )
+    try {
+      const { error, session: newSession } =
+        await signUpWithEmail(
+          cleanEmail,
+          password
+        )
 
-    if (error) {
-      setStatus(error)
+      if (error) {
+        setStatus(error)
+        return
+      }
+
+      console.log("Registration successful")
+      console.log("New session:", newSession)
+
+      if (newSession) {
+        // Automatically logged in
+        navigate("/", { replace: true })
+        return
+      }
+
+      // No session means Supabase is requiring
+      // email confirmation.
+      setStatus(
+        "Account created, but email confirmation is required. Disable email confirmation in Supabase to enable automatic login."
+      )
+    } catch (error) {
+      console.error("Registration failed:", error)
+
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while creating your account."
+      )
+    } finally {
       setIsRegistering(false)
-      return
     }
-
-    /*
-     * If email confirmation is disabled in Supabase,
-     * signUpWithEmail() creates a session.
-     *
-     * AuthProvider receives the session through
-     * onAuthStateChange(), causing this component to
-     * automatically redirect to "/".
-     */
-
-    setIsRegistering(false)
   }
 
   return (
@@ -73,7 +90,6 @@ export default function RegisterPage() {
       <Card className="mx-auto max-w-md overflow-hidden border-slate-200 bg-white shadow-sm">
         <CardContent className="space-y-6 p-6">
 
-          {/* Header */}
           <div className="space-y-2 text-center">
             <div className="mx-auto flex size-16 items-center justify-center rounded-3xl bg-blue-500/10 text-blue-600">
               <UserPlus className="h-7 w-7" />
@@ -90,12 +106,10 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          {/* Registration Form */}
           <form
             className="space-y-4"
             onSubmit={handleSubmit}
           >
-            {/* Email */}
             <div className="space-y-2">
               <label
                 className="text-xs font-medium text-slate-700"
@@ -117,7 +131,6 @@ export default function RegisterPage() {
               />
             </div>
 
-            {/* Password */}
             <div className="space-y-2">
               <label
                 className="text-xs font-medium text-slate-700"
@@ -139,7 +152,6 @@ export default function RegisterPage() {
               />
             </div>
 
-            {/* Confirm Password */}
             <div className="space-y-2">
               <label
                 className="text-xs font-medium text-slate-700"
@@ -161,14 +173,12 @@ export default function RegisterPage() {
               />
             </div>
 
-            {/* Error */}
             {status ? (
               <p className="text-sm text-red-600">
                 {status}
               </p>
             ) : null}
 
-            {/* Submit */}
             <Button
               type="submit"
               className="w-full"
@@ -185,7 +195,6 @@ export default function RegisterPage() {
             </Button>
           </form>
 
-          {/* Login */}
           <div className="text-center text-sm text-slate-500">
             Already have an account?{" "}
 
@@ -202,3 +211,4 @@ export default function RegisterPage() {
     </div>
   )
 }
+
