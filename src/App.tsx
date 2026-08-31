@@ -6,11 +6,11 @@ import OrdersPage from "./pages/OrdersPage";
 import ExpensesPage from "./pages/ExpensesPage";
 import SavingsPage from "./pages/SavingsPage";
 import SettingsPage from "./pages/SettingsPage";
-import { seedLocalDatabase } from "./lib/localDb";
+import { clearBundledSeedIfPresent } from "./lib/localDb";
 
 export default function App() {
   useEffect(() => {
-    void seedLocalDatabase()
+    void clearBundledSeedIfPresent()
   }, [])
 
   return (

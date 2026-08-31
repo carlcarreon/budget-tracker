@@ -302,3 +302,67 @@ export function restoreLocalDatabaseSeeding() {
   setSeedDisabled(false)
   seedCompleted = false
 }
+
+const seedMatchers = {
+  orders: seedData.orders,
+  expenses: seedData.expenses,
+  savingGoals: seedData.savingGoals,
+  contributions: seedData.contributions,
+  paylaters: seedData.paylaters,
+  incomes: [] satisfies IncomeRecord[],
+  settings: seedData.settings,
+} as const
+
+const normalizeRecord = <T extends Record<string, unknown>>(record: T) => {
+  const normalized = { ...record }
+
+  delete normalized.id
+
+  return normalized
+}
+
+const isExactSeedMatch = <T extends Record<string, unknown>>(
+  current: T[],
+  seed: readonly T[],
+) => {
+  if (current.length !== seed.length) {
+    return false
+  }
+
+  return current.every((record, index) => {
+    return (
+      JSON.stringify(normalizeRecord(record)) ===
+      JSON.stringify(normalizeRecord(seed[index]))
+    )
+  })
+}
+
+export async function clearBundledSeedIfPresent() {
+  const [orders, expenses, savingGoals, contributions, paylaters, incomes, settings] =
+    await Promise.all([
+      db.orders.orderBy("id").toArray(),
+      db.expenses.orderBy("id").toArray(),
+      db.savingGoals.orderBy("id").toArray(),
+      db.contributions.orderBy("id").toArray(),
+      db.paylaters.orderBy("id").toArray(),
+      db.incomes.orderBy("id").toArray(),
+      db.settings.orderBy("id").toArray(),
+    ])
+
+  const hasSeedData =
+    isExactSeedMatch(orders, seedMatchers.orders) &&
+    isExactSeedMatch(expenses, seedMatchers.expenses) &&
+    isExactSeedMatch(savingGoals, seedMatchers.savingGoals) &&
+    isExactSeedMatch(contributions, seedMatchers.contributions) &&
+    isExactSeedMatch(paylaters, seedMatchers.paylaters) &&
+    isExactSeedMatch(incomes, seedMatchers.incomes) &&
+    isExactSeedMatch(settings, seedMatchers.settings)
+
+  if (!hasSeedData) {
+    return false
+  }
+
+  await clearLocalDatabase()
+  restoreLocalDatabaseSeeding()
+  return true
+}

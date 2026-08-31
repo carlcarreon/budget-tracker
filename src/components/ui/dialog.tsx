@@ -53,15 +53,50 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  const [keyboardInset, setKeyboardInset] = React.useState(0)
+
+  React.useEffect(() => {
+    const viewport = window.visualViewport
+
+    const updateKeyboardInset = () => {
+      if (!viewport) {
+        setKeyboardInset(0)
+        return
+      }
+
+      const inset = Math.max(
+        0,
+        window.innerHeight - viewport.height - viewport.offsetTop,
+      )
+
+      setKeyboardInset(Math.round(inset))
+    }
+
+    updateKeyboardInset()
+    viewport?.addEventListener("resize", updateKeyboardInset)
+    viewport?.addEventListener("scroll", updateKeyboardInset)
+    window.addEventListener("orientationchange", updateKeyboardInset)
+
+    return () => {
+      viewport?.removeEventListener("resize", updateKeyboardInset)
+      viewport?.removeEventListener("scroll", updateKeyboardInset)
+      window.removeEventListener("orientationchange", updateKeyboardInset)
+    }
+  }, [])
+
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+          "fixed left-1/2 z-50 grid w-full max-w-[calc(100%-1.5rem)] -translate-x-1/2 gap-4 rounded-t-2xl bg-popover p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none max-h-[min(90dvh,calc(100dvh-1rem))] overflow-y-auto data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 sm:top-1/2 sm:max-w-sm sm:translate-y-[-50%] sm:rounded-xl sm:pb-4",
           className
         )}
+        style={{
+          top: "auto",
+          bottom: `calc(${keyboardInset}px + env(safe-area-inset-bottom) + 0.5rem)`,
+        }}
         {...props}
       >
         {children}

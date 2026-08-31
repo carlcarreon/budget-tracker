@@ -13,14 +13,14 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import {
-  db,
-  type ExpenseRecord,
-  type IncomeRecord,
-  type OrderRecord,
-  type PayLaterRecord,
-  type SavingGoalRecord,
+import type {
+  ExpenseRecord,
+  IncomeRecord,
+  OrderRecord,
+  PayLaterRecord,
+  SavingGoalRecord,
 } from "@/lib/localDb"
+import { supabase } from "@/utils/supabase"
 import { AddExpenseAction } from "./AddExpenseAction"
 import { AddExpenseDialog } from "./AddExpenseDialog"
 import { AddOrderAction } from "./AddOrderAction"
@@ -38,6 +38,30 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   }).format(value)
 
+function EmptyStateCard({
+  icon: Icon,
+  title,
+  description,
+  iconClassName,
+}: {
+  icon: typeof ShoppingBag
+  title: string
+  description: string
+  iconClassName: string
+}) {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center">
+      <div
+        className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-2xl ${iconClassName}`}
+      >
+        <Icon className="h-4 w-4" />
+      </div>
+      <p className="text-xs font-medium text-slate-900">{title}</p>
+      <p className="mt-1 text-2xs text-slate-500">{description}</p>
+    </div>
+  )
+}
+
 export function HomePage() {
   const [orders, setOrders] = useState<OrderRecord[]>([])
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([])
@@ -50,59 +74,41 @@ export function HomePage() {
   const [isPaylaterOpen, setIsPaylaterOpen] = useState(false)
   const [salaryAmount, setSalaryAmount] = useState("")
 
+  const loadHome = async () => {
+    const [orderResult, expenseResult, goalResult, paylaterResult, incomeResult] =
+      await Promise.all([
+        supabase.from("orders").select("*").order("id", { ascending: true }),
+        supabase.from("expenses").select("*").order("id", { ascending: true }),
+        supabase.from("saving_goals").select("*").order("id", { ascending: true }),
+        supabase.from("paylaters").select("*").order("id", { ascending: true }),
+        supabase.from("incomes").select("*").order("id", { ascending: true }),
+      ])
+
+    if (orderResult.error) throw orderResult.error
+    if (expenseResult.error) throw expenseResult.error
+    if (goalResult.error) throw goalResult.error
+    if (paylaterResult.error) throw paylaterResult.error
+    if (incomeResult.error) throw incomeResult.error
+
+    setOrders((orderResult.data ?? []) as OrderRecord[])
+    setExpenses((expenseResult.data ?? []) as ExpenseRecord[])
+    setSavingGoals((goalResult.data ?? []) as SavingGoalRecord[])
+    setPaylaters((paylaterResult.data ?? []) as PayLaterRecord[])
+    setIncomes((incomeResult.data ?? []) as IncomeRecord[])
+  }
+
   useEffect(() => {
     let active = true
 
-    const loadHome = async () => {
-      const [orderItems, expenseItems, goalItems, paylaterItems, incomeItems] = await Promise.all([
-        db.orders.orderBy("id").toArray(),
-        db.expenses.orderBy("id").toArray(),
-        db.savingGoals.orderBy("id").toArray(),
-        db.paylaters.orderBy("id").toArray(),
-        db.incomes.orderBy("id").toArray(),
-      ])
-
+    void loadHome().catch(() => {
       if (active) {
-        setOrders(
-          Array.from(
-            new Map(orderItems.map((item) => [item.id ?? item.name, item])).values(),
-          ),
-        )
-        setExpenses(
-          Array.from(
-            new Map(
-              expenseItems.map((item) => [
-                `${item.name}-${item.category}-${item.time}`,
-                item,
-              ]),
-            ).values(),
-          ),
-        )
-        setSavingGoals(
-          Array.from(
-            new Map(goalItems.map((item) => [item.id ?? item.title, item])).values(),
-          ),
-        )
-        setPaylaters(
-          Array.from(
-            new Map(
-              paylaterItems.map(
-                (item) => [item.id ?? `${item.name}-${item.months}-${item.totalAmount}`, item],
-              ),
-            ).values(),
-          ),
-        )
-        setIncomes(
-          Array.from(
-            new Map(
-              incomeItems.map((item) => [item.id ?? `${item.source}-${item.createdAt}`, item]),
-            ).values(),
-          ),
-        )
+        setOrders([])
+        setExpenses([])
+        setSavingGoals([])
+        setPaylaters([])
+        setIncomes([])
       }
-    }
-
-    void loadHome()
+    })
 
     return () => {
       active = false
@@ -182,19 +188,27 @@ export function HomePage() {
     }
 
     const createdAt = new Date().toISOString()
-    const id = await db.incomes.add({
-      source: "Salary",
-      amount: parsedAmount,
-      createdAt,
-    })
+    const { data, error } = await supabase
+      .from("incomes")
+      .insert({
+        source: "Salary",
+        amount: parsedAmount,
+        created_at: createdAt,
+      })
+      .select()
+      .single()
+
+    if (error || !data) {
+      return
+    }
 
     setIncomes((current) => [
       ...current,
       {
-        id,
-        source: "Salary",
-        amount: parsedAmount,
-        createdAt,
+        id: data.id,
+        source: data.source,
+        amount: Number(data.amount),
+        createdAt: data.created_at,
       },
     ])
     setSalaryAmount("")
@@ -211,46 +225,63 @@ export function HomePage() {
       minute: "2-digit",
     }).format(new Date())}`
 
-    const id = await db.expenses.add({
-      name: payload.name,
-      amount: payload.amount,
-      category: payload.category,
-      time,
-    })
-
-    setExpenses((current) => [
-      ...current,
-      {
-        id,
+    const { data, error } = await supabase
+      .from("expenses")
+      .insert({
         name: payload.name,
         amount: payload.amount,
         category: payload.category,
         time,
+      })
+      .select()
+      .single()
+
+    if (error || !data) {
+      return
+    }
+
+    setExpenses((current) => [
+      ...current,
+      {
+        id: data.id,
+        name: data.name,
+        amount: Number(data.amount),
+        category: data.category,
+        time: data.time,
       },
     ])
     setIsExpenseOpen(false)
   }
 
   const handleOrderSubmit = async (payload: { name: string; amount: number }) => {
-    const id = await db.orders.add({
-      name: payload.name,
-      target: payload.amount,
-      saved: 0,
-      progress: 0,
-      due: "N/A",
-      amount: payload.amount,
-    })
-
-    setOrders((current) => [
-      ...current,
-      {
-        id,
+    const { data, error } = await supabase
+      .from("orders")
+      .insert({
         name: payload.name,
         target: payload.amount,
         saved: 0,
         progress: 0,
         due: "N/A",
         amount: payload.amount,
+      })
+      .select()
+      .single()
+
+    if (error || !data) {
+      return
+    }
+
+    setOrders((current) => [
+      ...current,
+      {
+        id: data.id,
+        name: data.name,
+        target: Number(data.target),
+        saved: Number(data.saved),
+        progress: Number(data.progress),
+        due: data.due,
+        amount: data.amount == null ? undefined : Number(data.amount),
+        reserved: data.reserved == null ? undefined : Number(data.reserved),
       },
     ])
     setIsOrderOpen(false)
@@ -263,23 +294,31 @@ export function HomePage() {
     imageUrl?: string
   }) => {
     const totalAmount = payload.months * payload.monthlyPayment
-    const id = await db.paylaters.add({
-      name: payload.name,
-      months: payload.months,
-      monthlyPayment: payload.monthlyPayment,
-      totalAmount,
-      imageUrl: payload.imageUrl,
-    })
+    const { data, error } = await supabase
+      .from("paylaters")
+      .insert({
+        name: payload.name,
+        months: payload.months,
+        monthly_payment: payload.monthlyPayment,
+        total_amount: totalAmount,
+        image_url: payload.imageUrl ?? null,
+      })
+      .select()
+      .single()
+
+    if (error || !data) {
+      return
+    }
 
     setPaylaters((current) => [
       ...current,
       {
-        id,
-        name: payload.name,
-        months: payload.months,
-        monthlyPayment: payload.monthlyPayment,
-        totalAmount,
-        imageUrl: payload.imageUrl,
+        id: data.id,
+        name: data.name,
+        months: data.months,
+        monthlyPayment: Number(data.monthly_payment),
+        totalAmount: Number(data.total_amount),
+        imageUrl: data.image_url ?? undefined,
       },
     ])
     setIsPaylaterOpen(false)
@@ -446,17 +485,12 @@ export function HomePage() {
                   </p>
                 </>
               ) : (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center">
-                  <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600">
-                    <ShoppingBag className="h-4 w-4" />
-                  </div>
-                  <p className="text-xs font-medium text-slate-900">
-                    No active orders
-                  </p>
-                  <p className="mt-1 text-2xs text-slate-500">
-                    Add an order to start tracking savings.
-                  </p>
-                </div>
+                <EmptyStateCard
+                  icon={ShoppingBag}
+                  iconClassName="bg-blue-500/10 text-blue-600"
+                  title="No trackers yet"
+                  description="Start by adding your first goal."
+                />
               )}
             </CardContent>
           </Card>
@@ -517,17 +551,12 @@ export function HomePage() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center">
-                  <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500">
-                    <CreditCard className="h-4 w-4" />
-                  </div>
-                  <p className="text-xs font-medium text-slate-900">
-                    No paylater yet
-                  </p>
-                  <p className="mt-1 text-2xs text-slate-500">
-                    Add an installment item to start tracking payments.
-                  </p>
-                </div>
+                <EmptyStateCard
+                  icon={CreditCard}
+                  iconClassName="bg-rose-500/10 text-rose-500"
+                  title="No trackers yet"
+                  description="Start by adding your first goal."
+                />
               )}
             </CardContent>
           </Card>
@@ -571,17 +600,12 @@ export function HomePage() {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center">
-                  <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600">
-                    <ClipboardList className="h-4 w-4" />
-                  </div>
-                  <p className="text-xs font-medium text-slate-900">
-                    No spending today
-                  </p>
-                  <p className="mt-1 text-2xs text-slate-500">
-                    Add an expense to start tracking progress.
-                  </p>
-                </div>
+                <EmptyStateCard
+                  icon={ClipboardList}
+                  iconClassName="bg-emerald-500/10 text-emerald-600"
+                  title="No transactions yet"
+                  description="Add your first expense or income."
+                />
               )}
 
               {todaySpending > 0 ? (
@@ -652,17 +676,12 @@ export function HomePage() {
                   </p>
                 </>
               ) : (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center">
-                  <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600">
-                    <PiggyBank className="h-4 w-4" />
-                  </div>
-                  <p className="text-xs font-medium text-slate-900">
-                    No savings goals yet
-                  </p>
-                  <p className="mt-1 text-2xs text-slate-500">
-                    Add your first goal to track progress.
-                  </p>
-                </div>
+                <EmptyStateCard
+                  icon={PiggyBank}
+                  iconClassName="bg-violet-500/10 text-violet-600"
+                  title="No trackers yet"
+                  description="Start by adding your first goal."
+                />
               )}
             </CardContent>
           </Card>
@@ -716,10 +735,13 @@ export function HomePage() {
                 </div>
               ))
             ) : (
-              <div className="px-4 py-6 text-center">
-                <p className="text-sm font-medium text-slate-900">
-                  No recent transactions
-                </p>
+              <div className="px-4 py-6">
+                <EmptyStateCard
+                  icon={HandPlatter}
+                  iconClassName="bg-rose-500/10 text-rose-500"
+                  title="No transactions yet"
+                  description="Add your first expense or income."
+                />
               </div>
             )}
           </CardContent>
