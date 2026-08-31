@@ -19,10 +19,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/lib/auth"
 import {
-  clearLocalDatabase,
   db,
   type SettingsRecord,
 } from "@/lib/localDb"
+
+import { supabase } from "@/utils/supabase"
 
 const accountItems = [
   {
@@ -106,7 +107,7 @@ const otherItems = [
 function SettingsPage() {
   const [settings, setSettings] = useState<SettingsRecord | null>(null)
   const [isClearing, setIsClearing] = useState(false)
-  const { signOut } = useAuth()
+  const { user, signOut } = useAuth()
 
   useEffect(() => {
     let active = true
@@ -126,9 +127,17 @@ function SettingsPage() {
     }
   }, [])
 
+  const handleSignOut = async () => {
+    await signOut()
+  }
+
   const handleClearData = async () => {
+    if (!user) {
+      return
+    }
+
     const confirmed = window.confirm(
-      "Clear all local data on this device? This cannot be undone.",
+      "Delete all your Budget Track data? This cannot be undone.",
     )
 
     if (!confirmed) {
@@ -138,16 +147,45 @@ function SettingsPage() {
     setIsClearing(true)
 
     try {
-      await clearLocalDatabase()
+      const tables = [
+        "expenses",
+        "incomes",
+        "orders",
+        "paylaters",
+        "saving_goals",
+      ] as const
+
+      for (const table of tables) {
+        const { error } = await supabase
+          .from(table)
+          .delete()
+          .eq("user_id", user.id)
+
+        if (error) {
+          console.error(
+            `Failed to delete ${table}:`,
+            error,
+          )
+
+          throw error
+        }
+      }
+
       setSettings(null)
+
       window.location.reload()
+    } catch (error) {
+      console.error(
+        "Failed to clear Supabase data:",
+        error,
+      )
+
+      window.alert(
+        "Failed to delete your data. Please try again.",
+      )
     } finally {
       setIsClearing(false)
     }
-  }
-
-  const handleSignOut = async () => {
-    await signOut()
   }
 
   return (
@@ -219,9 +257,8 @@ function SettingsPage() {
 
                     <div className="min-w-0">
                       <p
-                        className={`text-sm font-semibold ${
-                          item.labelClassName ?? "text-slate-900"
-                        }`}
+                        className={`text-sm font-semibold ${item.labelClassName ?? "text-slate-900"
+                          }`}
                       >
                         {item.label}
                       </p>
