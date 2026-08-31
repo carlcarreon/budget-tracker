@@ -192,8 +192,8 @@ export function HomePage() {
   const totalBalance = useMemo(
     () =>
       incomeTotal +
-      orders.reduce((sum, order) => sum + order.saved, 0) +
-      expenses.reduce((sum, expense) => sum + expense.amount, 0) +
+      orders.reduce((sum, order) => sum + order.saved, 0) -
+      expenses.reduce((sum, expense) => sum + expense.amount, 0) -
       savingGoals.reduce((sum, goal) => sum + goal.saved, 0),
     [expenses, incomeTotal, orders, savingGoals],
   )
@@ -540,7 +540,7 @@ export function HomePage() {
                           width: `${Math.min(
                             100,
                             orders.reduce((sum, order) => sum + order.progress, 0) /
-                              Math.max(1, orders.length),
+                            Math.max(1, orders.length),
                           )}%`,
                         }}
                       />
@@ -667,7 +667,7 @@ export function HomePage() {
                               1,
                               expenses.reduce((sum, expense) => sum + expense.amount, 0),
                             )) *
-                            100,
+                          100,
                         )}%`,
                       }}
                     />
@@ -732,7 +732,7 @@ export function HomePage() {
                                 1,
                                 savingGoals.reduce((sum, goal) => sum + goal.target, 0),
                               )) *
-                              100,
+                            100,
                           )}%`,
                         }}
                       />
