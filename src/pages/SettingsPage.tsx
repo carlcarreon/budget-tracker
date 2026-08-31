@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { useAuth } from "@/lib/auth"
 import {
   clearLocalDatabase,
   db,
@@ -105,6 +106,7 @@ const otherItems = [
 function SettingsPage() {
   const [settings, setSettings] = useState<SettingsRecord | null>(null)
   const [isClearing, setIsClearing] = useState(false)
+  const { signOut } = useAuth()
 
   useEffect(() => {
     let active = true
@@ -142,6 +144,10 @@ function SettingsPage() {
     } finally {
       setIsClearing(false)
     }
+  }
+
+  const handleSignOut = async () => {
+    await signOut()
   }
 
   return (
@@ -324,6 +330,18 @@ function SettingsPage() {
                 </div>
               )
             })}
+
+            <div className="border-t border-slate-200 p-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start gap-3 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={() => void handleSignOut()}
+              >
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </section>

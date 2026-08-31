@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { useAuth } from "@/lib/auth"
 import type {
   ExpenseRecord,
   IncomeRecord,
@@ -62,7 +63,52 @@ function EmptyStateCard({
   )
 }
 
+const mapOrderRow = (row: Record<string, unknown>): OrderRecord => ({
+  id: Number(row.id),
+  name: String(row.name ?? ""),
+  target: Number(row.target ?? 0),
+  saved: Number(row.saved ?? 0),
+  progress: Number(row.progress ?? 0),
+  due: String(row.due ?? "N/A"),
+  reserved: row.reserved == null ? undefined : Number(row.reserved),
+  amount: row.amount == null ? undefined : Number(row.amount),
+})
+
+const mapExpenseRow = (row: Record<string, unknown>): ExpenseRecord => ({
+  id: Number(row.id),
+  name: String(row.name ?? ""),
+  category: String(row.category ?? ""),
+  amount: Number(row.amount ?? 0),
+  time: String(row.time ?? ""),
+})
+
+const mapSavingGoalRow = (row: Record<string, unknown>): SavingGoalRecord => ({
+  id: Number(row.id),
+  title: String(row.title ?? ""),
+  target: Number(row.target ?? 0),
+  saved: Number(row.saved ?? 0),
+  progress: Number(row.progress ?? 0),
+  status: String(row.status ?? ""),
+})
+
+const mapPaylaterRow = (row: Record<string, unknown>): PayLaterRecord => ({
+  id: Number(row.id),
+  name: String(row.name ?? ""),
+  months: Number(row.months ?? 0),
+  monthlyPayment: Number(row.monthly_payment ?? 0),
+  totalAmount: Number(row.total_amount ?? 0),
+  imageUrl: row.image_url == null ? undefined : String(row.image_url),
+})
+
+const mapIncomeRow = (row: Record<string, unknown>): IncomeRecord => ({
+  id: Number(row.id),
+  source: String(row.source ?? ""),
+  amount: Number(row.amount ?? 0),
+  createdAt: String(row.created_at ?? ""),
+})
+
 export function HomePage() {
+  const { user } = useAuth()
   const [orders, setOrders] = useState<OrderRecord[]>([])
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([])
   const [savingGoals, setSavingGoals] = useState<SavingGoalRecord[]>([])
@@ -77,11 +123,31 @@ export function HomePage() {
   const loadHome = async () => {
     const [orderResult, expenseResult, goalResult, paylaterResult, incomeResult] =
       await Promise.all([
-        supabase.from("orders").select("*").order("id", { ascending: true }),
-        supabase.from("expenses").select("*").order("id", { ascending: true }),
-        supabase.from("saving_goals").select("*").order("id", { ascending: true }),
-        supabase.from("paylaters").select("*").order("id", { ascending: true }),
-        supabase.from("incomes").select("*").order("id", { ascending: true }),
+        supabase
+          .from("orders")
+          .select("*")
+          .eq("user_id", user?.id ?? "")
+          .order("id", { ascending: true }),
+        supabase
+          .from("expenses")
+          .select("*")
+          .eq("user_id", user?.id ?? "")
+          .order("id", { ascending: true }),
+        supabase
+          .from("saving_goals")
+          .select("*")
+          .eq("user_id", user?.id ?? "")
+          .order("id", { ascending: true }),
+        supabase
+          .from("paylaters")
+          .select("*")
+          .eq("user_id", user?.id ?? "")
+          .order("id", { ascending: true }),
+        supabase
+          .from("incomes")
+          .select("*")
+          .eq("user_id", user?.id ?? "")
+          .order("id", { ascending: true }),
       ])
 
     if (orderResult.error) throw orderResult.error
@@ -90,15 +156,19 @@ export function HomePage() {
     if (paylaterResult.error) throw paylaterResult.error
     if (incomeResult.error) throw incomeResult.error
 
-    setOrders((orderResult.data ?? []) as OrderRecord[])
-    setExpenses((expenseResult.data ?? []) as ExpenseRecord[])
-    setSavingGoals((goalResult.data ?? []) as SavingGoalRecord[])
-    setPaylaters((paylaterResult.data ?? []) as PayLaterRecord[])
-    setIncomes((incomeResult.data ?? []) as IncomeRecord[])
+    setOrders((orderResult.data ?? []).map((row) => mapOrderRow(row)))
+    setExpenses((expenseResult.data ?? []).map((row) => mapExpenseRow(row)))
+    setSavingGoals((goalResult.data ?? []).map((row) => mapSavingGoalRow(row)))
+    setPaylaters((paylaterResult.data ?? []).map((row) => mapPaylaterRow(row)))
+    setIncomes((incomeResult.data ?? []).map((row) => mapIncomeRow(row)))
   }
 
   useEffect(() => {
     let active = true
+
+    if (!user) {
+      return undefined
+    }
 
     void loadHome().catch(() => {
       if (active) {
@@ -113,7 +183,7 @@ export function HomePage() {
     return () => {
       active = false
     }
-  }, [])
+  }, [user])
 
   const incomeTotal = useMemo(
     () => incomes.reduce((sum, income) => sum + income.amount, 0),
@@ -194,6 +264,7 @@ export function HomePage() {
         source: "Salary",
         amount: parsedAmount,
         created_at: createdAt,
+        user_id: user?.id,
       })
       .select()
       .single()
@@ -232,6 +303,7 @@ export function HomePage() {
         amount: payload.amount,
         category: payload.category,
         time,
+        user_id: user?.id,
       })
       .select()
       .single()
@@ -263,6 +335,7 @@ export function HomePage() {
         progress: 0,
         due: "N/A",
         amount: payload.amount,
+        user_id: user?.id,
       })
       .select()
       .single()
@@ -302,6 +375,7 @@ export function HomePage() {
         monthly_payment: payload.monthlyPayment,
         total_amount: totalAmount,
         image_url: payload.imageUrl ?? null,
+        user_id: user?.id,
       })
       .select()
       .single()
