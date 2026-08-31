@@ -239,16 +239,31 @@ export function HomePage() {
       return expenseDate === today ? sum + expense.amount : sum
     }, 0)
   }, [expenses])
-  const recentTransactions = useMemo(
-    () =>
-      expenses.slice(0, 3).map((expense) => ({
-        name: expense.name,
-        category: expense.category,
-        amount: expense.amount,
-        time: expense.time,
-      })),
-    [expenses],
-  )
+  const recentTransactions = useMemo(() => {
+    const expenseTransactions = expenses.map((expense) => ({
+      id: `expense-${expense.id}`,
+      name: expense.name,
+      category: expense.category,
+      amount: expense.amount,
+      time: expense.time,
+      type: "expense" as const,
+      date: new Date(expense.time).getTime(),
+    }))
+
+    const incomeTransactions = incomes.map((income) => ({
+      id: `income-${income.id}`,
+      name: income.source,
+      category: "Income",
+      amount: income.amount,
+      time: income.createdAt,
+      type: "income" as const,
+      date: new Date(income.createdAt).getTime(),
+    }))
+
+    return [...expenseTransactions, ...incomeTransactions]
+      .sort((a, b) => b.date - a.date)
+      .slice(0, 3)
+  }, [expenses, incomes])
 
   const handleSalarySubmit = async () => {
     const parsedAmount = Number(salaryAmount.replace(/[^0-9.]/g, ""))
@@ -779,35 +794,68 @@ export function HomePage() {
         <Card className="py-0">
           <CardContent className="p-0">
             {recentTransactions.length > 0 ? (
-              recentTransactions.map((transaction, index) => (
-                <div key={`${transaction.name}-${transaction.category}-${transaction.time}`}>
-                  <div className="flex items-center gap-3 px-4 py-4">
-                    <div className="rounded-full bg-rose-500/10 p-3 text-rose-500">
-                      <HandPlatter className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {transaction.name}
-                      </p>
-                      <p className="text-xs font-medium text-muted-foreground">
-                        {transaction.category}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold tracking-tight text-slate-900">
-                        -{formatCurrency(transaction.amount)}
-                      </p>
-                      <p className="text-xs font-medium text-muted-foreground">
-                        {transaction.time}
-                      </p>
-                    </div>
-                  </div>
+              recentTransactions.map((transaction, index) => {
+                const isIncome = transaction.type === "income"
 
-                  {index < recentTransactions.length - 1 ? (
-                    <Separator className="bg-slate-200" />
-                  ) : null}
-                </div>
-              ))
+                return (
+                  <div key={transaction.id}>
+                    <div className="flex items-center gap-3 px-4 py-4">
+                      {/* Icon */}
+                      <div
+                        className={
+                          isIncome
+                            ? "rounded-full bg-emerald-500/10 p-3 text-emerald-600"
+                            : "rounded-full bg-rose-500/10 p-3 text-rose-500"
+                        }
+                      >
+                        {isIncome ? (
+                          <Wallet className="h-5 w-5" />
+                        ) : (
+                          <HandPlatter className="h-5 w-5" />
+                        )}
+                      </div>
+
+                      {/* Transaction information */}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {transaction.name}
+                        </p>
+
+                        <p className="text-xs font-medium text-muted-foreground">
+                          {transaction.category}
+                        </p>
+                      </div>
+
+                      {/* Amount */}
+                      <div className="text-right">
+                        <p
+                          className={
+                            isIncome
+                              ? "text-sm font-bold tracking-tight text-emerald-600"
+                              : "text-sm font-bold tracking-tight text-rose-500"
+                          }
+                        >
+                          {isIncome ? "+" : "-"}
+                          {formatCurrency(transaction.amount)}
+                        </p>
+
+                        <p className="text-xs font-medium text-muted-foreground">
+                          {new Date(transaction.time).toLocaleString("en-PH", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+
+                    {index < recentTransactions.length - 1 ? (
+                      <Separator className="bg-slate-200" />
+                    ) : null}
+                  </div>
+                )
+              })
             ) : (
               <div className="px-4 py-6">
                 <EmptyStateCard
