@@ -24,7 +24,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { db, type ExpenseRecord } from "@/lib/localDb"
+import { useAuth } from "@/lib/auth"
+import type { ExpenseRecord } from "@/lib/localDb"
+import { supabase } from "@/utils/supabase"
 
 const categoryMeta = {
   "Food & Dining": {
@@ -73,69 +75,124 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   }).format(value)
 
+const mapExpenseRow = (
+  row: Record<string, unknown>,
+): ExpenseRecord => ({
+  id: Number(row.id),
+  name: String(row.name ?? ""),
+  category: String(row.category ?? ""),
+  amount: Number(row.amount ?? 0),
+  time: String(row.time ?? ""),
+})
+
 function ExpensesPage() {
+  const { user } = useAuth()
+
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  const loadExpenses = async () => {
+    if (!user) {
+      setExpenses([])
+      setIsLoading(false)
+      return
+    }
+
+    setIsLoading(true)
+
+    const { data, error } = await supabase
+      .from("expenses")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("id", { ascending: false })
+
+    if (error) {
+      console.error("Failed to load expenses:", error)
+      setExpenses([])
+      setIsLoading(false)
+      return
+    }
+
+    const mappedExpenses = (data ?? []).map((row) =>
+      mapExpenseRow(row as Record<string, unknown>),
+    )
+
+    const uniqueItems = Array.from(
+      new Map(
+        mappedExpenses.map((item) => [
+          `${item.id}-${item.name}-${item.category}-${item.time}`,
+          item,
+        ]),
+      ).values(),
+    )
+
+    setExpenses(uniqueItems)
+    setIsLoading(false)
+  }
 
   useEffect(() => {
-    let active = true
-
-    const loadExpenses = async () => {
-      const items = await db.expenses.orderBy("id").toArray()
-      const uniqueItems = Array.from(
-        new Map(
-          items.map((item) => [
-            `${item.name}-${item.category}-${item.time}`,
-            item,
-          ]),
-        ).values(),
-      )
-
-      if (active) {
-        setExpenses(uniqueItems)
-      }
-    }
-
     void loadExpenses()
-
-    return () => {
-      active = false
-    }
-  }, [])
+  }, [user])
 
   const categoryItems = useMemo(() => {
-    const grouped = expenses.reduce<Record<string, number>>((acc, expense) => {
-      acc[expense.category] = (acc[expense.category] ?? 0) + expense.amount
-      return acc
-    }, {})
+    const grouped = expenses.reduce<Record<string, number>>(
+      (acc, expense) => {
+        acc[expense.category] =
+          (acc[expense.category] ?? 0) + expense.amount
 
-    const totals = Object.entries(grouped).map(([name, value]) => ({
-      name,
-      value,
-      amount: formatCurrency(value),
-      percent: "0.0%",
-      ...categoryMeta[name as keyof typeof categoryMeta],
-    }))
+        return acc
+      },
+      {},
+    )
 
-    const total = totals.reduce((sum, item) => sum + item.value, 0) || 1
+    const totals = Object.entries(grouped).map(
+      ([name, value]) => ({
+        name,
+        value,
+        amount: formatCurrency(value),
+        percent: "0.0%",
+        ...categoryMeta[
+          name as keyof typeof categoryMeta
+        ],
+      }),
+    )
+
+    const total =
+      totals.reduce((sum, item) => sum + item.value, 0) || 1
 
     return totals
       .sort((a, b) => b.value - a.value)
       .map((item) => ({
         ...item,
-        percent: `${((item.value / total) * 100).toFixed(1)}%`,
+        percent: `${(
+          (item.value / total) *
+          100
+        ).toFixed(1)}%`,
       }))
   }, [expenses])
 
   const totalSpent = useMemo(
-    () => expenses.reduce((sum, expense) => sum + expense.amount, 0),
+    () =>
+      expenses.reduce(
+        (sum, expense) => sum + expense.amount,
+        0,
+      ),
     [expenses],
   )
+
   const transactionCount = expenses.length
+
   const highestExpense = useMemo(
-    () => Math.max(0, ...expenses.map((expense) => expense.amount)),
+    () =>
+      Math.max(
+        0,
+        ...expenses.map((expense) => expense.amount),
+      ),
     [expenses],
   )
-  const dailyAverage = transactionCount ? totalSpent / 31 : 0
+
+  const dailyAverage =
+    transactionCount > 0 ? totalSpent / 31 : 0
 
   const transactions = useMemo(
     () =>
@@ -144,25 +201,33 @@ function ExpensesPage() {
         category: expense.category,
         amount: formatCurrency(expense.amount),
         time: expense.time,
-        icon: (categoryMeta[expense.category as keyof typeof categoryMeta]?.icon ??
-          Wallet) as typeof Wallet,
+        icon:
+          categoryMeta[
+            expense.category as keyof typeof categoryMeta
+          ]?.icon ?? Wallet,
         tint:
-          categoryMeta[expense.category as keyof typeof categoryMeta]?.iconBg ??
-          "bg-slate-100",
+          categoryMeta[
+            expense.category as keyof typeof categoryMeta
+          ]?.iconBg ?? "bg-slate-100",
         iconColor:
-          categoryMeta[expense.category as keyof typeof categoryMeta]?.iconColor ??
-          "text-slate-500",
+          categoryMeta[
+            expense.category as keyof typeof categoryMeta
+          ]?.iconColor ?? "text-slate-500",
       })),
     [expenses],
   )
 
   return (
-    <section className="page space-y-5" id="expenses">
+    <section
+      className="page space-y-5"
+      id="expenses"
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
             Expenses
           </h2>
+
           <p className="max-w-md text-xs text-muted-foreground">
             Track where your money goes.
           </p>
@@ -179,20 +244,37 @@ function ExpensesPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs
+        defaultValue="overview"
+        className="w-full"
+      >
         <TabsList className="w-full">
-          <TabsTrigger value="overview" className="flex-1">
+          <TabsTrigger
+            value="overview"
+            className="flex-1"
+          >
             Overview
           </TabsTrigger>
-          <TabsTrigger value="transactions" className="flex-1">
+
+          <TabsTrigger
+            value="transactions"
+            className="flex-1"
+          >
             Transactions
           </TabsTrigger>
-          <TabsTrigger value="categories" className="flex-1">
+
+          <TabsTrigger
+            value="categories"
+            className="flex-1"
+          >
             Categories
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="mt-4 space-y-4">
+        <TabsContent
+          value="overview"
+          className="mt-4 space-y-4"
+        >
           <Card className="p-0">
             <CardContent className="space-y-4 p-4">
               <div className="flex items-start justify-between gap-4">
@@ -201,6 +283,7 @@ function ExpensesPage() {
                     <p className="text-sm font-medium text-slate-700">
                       Spend This Month
                     </p>
+
                     <p className="text-3xl font-semibold tracking-tight text-rose-500">
                       {formatCurrency(totalSpent)}
                     </p>
@@ -209,31 +292,54 @@ function ExpensesPage() {
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button type="button" variant="outline" size="xs">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                    >
                       Month
                       <ChevronDown className="h-3.5 w-3.5" />
                     </Button>
                   </DropdownMenuTrigger>
+
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem className="text-2xs">May</DropdownMenuItem>
-                    <DropdownMenuItem className="text-2xs">April</DropdownMenuItem>
-                    <DropdownMenuItem className="text-2xs">March</DropdownMenuItem>
+                    <DropdownMenuItem className="text-2xs">
+                      May
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem className="text-2xs">
+                      April
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem className="text-2xs">
+                      March
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
 
               <Separator className="bg-slate-200" />
 
-              {expenses.length > 0 ? (
+              {isLoading ? (
+                <div className="py-6 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Loading expenses...
+                  </p>
+                </div>
+              ) : expenses.length > 0 ? (
                 <div className="grid grid-cols-3 gap-1">
                   <div className="flex items-center gap-3 p-0">
                     <div className="grid size-8 shrink-0 place-items-center rounded-md bg-rose-50 text-rose-500">
-                      <span className="text-2xl leading-none">↓</span>
+                      <span className="text-2xl leading-none">
+                        ↓
+                      </span>
                     </div>
+
                     <div className="min-w-0">
                       <p className="text-2xs font-medium text-slate-700">
                         Daily Average
                       </p>
+
                       <p className="text-sm font-semibold text-rose-500">
                         {formatCurrency(dailyAverage)}
                       </p>
@@ -244,10 +350,12 @@ function ExpensesPage() {
                     <div className="grid size-8 shrink-0 place-items-center rounded-md bg-amber-50 text-amber-500">
                       <CalendarDays className="h-4 w-4" />
                     </div>
+
                     <div className="min-w-0">
                       <p className="text-2xs font-medium text-slate-700">
                         Transactions
                       </p>
+
                       <p className="text-sm font-semibold text-slate-900">
                         {transactionCount}
                       </p>
@@ -258,10 +366,12 @@ function ExpensesPage() {
                     <div className="grid size-8 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-500">
                       <Wallet className="h-4 w-4" />
                     </div>
+
                     <div className="min-w-0">
                       <p className="text-2xs font-medium text-slate-700">
                         Highest Expense
                       </p>
+
                       <p className="text-sm font-semibold text-slate-900">
                         {formatCurrency(highestExpense)}
                       </p>
@@ -273,9 +383,11 @@ function ExpensesPage() {
                   <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600">
                     <Wallet className="h-4 w-4" />
                   </div>
+
                   <p className="text-xs font-medium text-slate-900">
                     No expenses yet
                   </p>
+
                   <p className="mt-1 text-2xs text-slate-500">
                     Add an expense to start tracking your spending.
                   </p>
@@ -290,6 +402,7 @@ function ExpensesPage() {
                 <h3 className="text-base font-semibold tracking-tight text-slate-900">
                   Spending by Category
                 </h3>
+
                 <Button
                   type="button"
                   variant="ghost"
@@ -302,7 +415,10 @@ function ExpensesPage() {
               {categoryItems.length > 0 ? (
                 <div className="grid grid-cols-[140px_minmax(0,1fr)] items-center gap-1">
                   <div className="relative mx-auto size-32">
-                    <PieChart width={128} height={128}>
+                    <PieChart
+                      width={128}
+                      height={128}
+                    >
                       <Pie
                         data={categoryItems}
                         dataKey="value"
@@ -313,14 +429,26 @@ function ExpensesPage() {
                         endAngle={-270}
                         stroke="none"
                       >
-                        {categoryItems.map((entry) => (
-                          <Cell key={entry.name} fill={entry.chartColor ?? "#cbd5e1"} />
-                        ))}
+                        {categoryItems.map(
+                          (entry) => (
+                            <Cell
+                              key={entry.name}
+                              fill={
+                                entry.chartColor ??
+                                "#cbd5e1"
+                              }
+                            />
+                          ),
+                        )}
                       </Pie>
                     </PieChart>
+
                     <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
                       <div>
-                        <p className="text-xs text-muted-foreground">Total</p>
+                        <p className="text-xs text-muted-foreground">
+                          Total
+                        </p>
+
                         <p className="text-base font-semibold tracking-tight text-slate-900">
                           {formatCurrency(totalSpent)}
                         </p>
@@ -329,33 +457,39 @@ function ExpensesPage() {
                   </div>
 
                   <div className="space-y-1">
-                    {categoryItems.map((item) => {
-                      const Icon = item.icon ?? Ellipsis
+                    {categoryItems.map(
+                      (item) => {
+                        const Icon =
+                          item.icon ?? Ellipsis
 
-                      return (
-                        <div
-                          key={item.name}
-                          className="grid grid-cols-[minmax(0,1fr)_52px_48px] items-center gap-2"
-                        >
-                          <div className="flex min-w-0 items-center gap-1">
-                            <div
-                              className={`grid size-6 shrink-0 place-items-center rounded-md ${item.iconBg} ${item.iconColor}`}
-                            >
-                              <Icon className="h-3 w-3" />
+                        return (
+                          <div
+                            key={item.name}
+                            className="grid grid-cols-[minmax(0,1fr)_52px_48px] items-center gap-2"
+                          >
+                            <div className="flex min-w-0 items-center gap-1">
+                              <div
+                                className={`grid size-6 shrink-0 place-items-center rounded-md ${item.iconBg} ${item.iconColor}`}
+                              >
+                                <Icon className="h-3 w-3" />
+                              </div>
+
+                              <span className="min-w-0 truncate text-2xs leading-tight text-slate-900">
+                                {item.name}
+                              </span>
                             </div>
-                            <span className="min-w-0 truncate text-2xs leading-tight text-slate-900">
-                              {item.name}
+
+                            <span className="whitespace-nowrap text-left text-xs font-medium leading-none text-slate-900">
+                              {item.amount}
+                            </span>
+
+                            <span className="justify-self-end whitespace-nowrap text-right text-xs leading-none text-slate-500">
+                              {item.percent}
                             </span>
                           </div>
-                          <span className="whitespace-nowrap text-left text-xs font-medium leading-none text-slate-900">
-                            {item.amount}
-                          </span>
-                          <span className="justify-self-end whitespace-nowrap text-right text-xs leading-none text-slate-500">
-                            {item.percent}
-                          </span>
-                        </div>
-                      )
-                    })}
+                        )
+                      },
+                    )}
                   </div>
                 </div>
               ) : (
@@ -363,9 +497,11 @@ function ExpensesPage() {
                   <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600">
                     <ShoppingBag className="h-4 w-4" />
                   </div>
+
                   <p className="text-xs font-medium text-slate-900">
                     No categories yet
                   </p>
+
                   <p className="mt-1 text-2xs text-slate-500">
                     Add expenses to see your category breakdown.
                   </p>
@@ -380,6 +516,7 @@ function ExpensesPage() {
                 <h3 className="text-base font-semibold tracking-tight text-slate-900">
                   Recent Transactions
                 </h3>
+
                 <Button
                   type="button"
                   variant="ghost"
@@ -391,48 +528,61 @@ function ExpensesPage() {
 
               {transactions.length > 0 ? (
                 <div className="space-y-0">
-                  {transactions.map((transaction, index) => (
-                    <div
-                      key={`${transaction.name}-${transaction.category}-${transaction.time}`}
-                    >
-                      <div className="flex items-center gap-3 py-3">
-                        <div className={`grid size-11 place-items-center rounded-md ${transaction.tint}`}>
-                          <transaction.icon className={`h-5 w-5 ${transaction.iconColor}`} />
+                  {transactions.map(
+                    (transaction, index) => (
+                      <div
+                        key={`${transaction.name}-${transaction.category}-${transaction.time}`}
+                      >
+                        <div className="flex items-center gap-3 py-3">
+                          <div
+                            className={`grid size-11 place-items-center rounded-md ${transaction.tint}`}
+                          >
+                            <transaction.icon
+                              className={`h-5 w-5 ${transaction.iconColor}`}
+                            />
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-slate-900">
+                              {transaction.name}
+                            </p>
+
+                            <p className="truncate text-xs text-slate-500">
+                              {transaction.category}
+                            </p>
+                          </div>
+
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-rose-500">
+                              -{transaction.amount}
+                            </p>
+
+                            <p className="text-xs text-slate-500">
+                              {transaction.time}
+                            </p>
+                          </div>
+
+                          <ChevronRight className="h-4 w-4 text-slate-400" />
                         </div>
 
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-slate-900">
-                            {transaction.name}
-                          </p>
-                          <p className="truncate text-xs text-slate-500">
-                            {transaction.category}
-                          </p>
-                        </div>
-
-                        <div className="text-right">
-                          <p className="text-sm font-semibold text-rose-500">
-                            {transaction.amount}
-                          </p>
-                          <p className="text-xs text-slate-500">{transaction.time}</p>
-                        </div>
-
-                        <ChevronRight className="h-4 w-4 text-slate-400" />
+                        {index <
+                        transactions.length - 1 ? (
+                          <Separator className="bg-slate-200" />
+                        ) : null}
                       </div>
-
-                      {index < transactions.length - 1 ? (
-                        <Separator className="bg-slate-200" />
-                      ) : null}
-                    </div>
-                  ))}
+                    ),
+                  )}
                 </div>
               ) : (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center">
                   <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600">
                     <Wallet className="h-4 w-4" />
                   </div>
+
                   <p className="text-xs font-medium text-slate-900">
                     No recent transactions
                   </p>
+
                   <p className="mt-1 text-2xs text-slate-500">
                     Add an expense to populate this list.
                   </p>
@@ -442,18 +592,26 @@ function ExpensesPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="transactions" className="mt-4">
+        <TabsContent
+          value="transactions"
+          className="mt-4"
+        >
           <Card className="p-4">
             <p className="text-sm text-muted-foreground">
-              Transactions view is powered by the same local expense records.
+              Transactions view is powered by your
+              Supabase expense records.
             </p>
           </Card>
         </TabsContent>
 
-        <TabsContent value="categories" className="mt-4">
+        <TabsContent
+          value="categories"
+          className="mt-4"
+        >
           <Card className="p-4">
             <p className="text-sm text-muted-foreground">
-              Categories view will reuse the local grouped expense data.
+              Categories view is powered by your
+              Supabase expense records.
             </p>
           </Card>
         </TabsContent>

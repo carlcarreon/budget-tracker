@@ -37,7 +37,7 @@ const formatCurrency = (value: number) =>
     currency: "PHP",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value)
+  }).format(Math.abs(value))
 
 function EmptyStateCard({
   icon: Icon,
@@ -57,7 +57,9 @@ function EmptyStateCard({
       >
         <Icon className="h-4 w-4" />
       </div>
+
       <p className="text-xs font-medium text-slate-900">{title}</p>
+
       <p className="mt-1 text-2xs text-slate-500">{description}</p>
     </div>
   )
@@ -82,7 +84,9 @@ const mapExpenseRow = (row: Record<string, unknown>): ExpenseRecord => ({
   time: String(row.time ?? ""),
 })
 
-const mapSavingGoalRow = (row: Record<string, unknown>): SavingGoalRecord => ({
+const mapSavingGoalRow = (
+  row: Record<string, unknown>,
+): SavingGoalRecord => ({
   id: Number(row.id),
   title: String(row.title ?? ""),
   target: Number(row.target ?? 0),
@@ -91,7 +95,9 @@ const mapSavingGoalRow = (row: Record<string, unknown>): SavingGoalRecord => ({
   status: String(row.status ?? ""),
 })
 
-const mapPaylaterRow = (row: Record<string, unknown>): PayLaterRecord => ({
+const mapPaylaterRow = (
+  row: Record<string, unknown>,
+): PayLaterRecord => ({
   id: Number(row.id),
   name: String(row.name ?? ""),
   months: Number(row.months ?? 0),
@@ -100,7 +106,9 @@ const mapPaylaterRow = (row: Record<string, unknown>): PayLaterRecord => ({
   imageUrl: row.image_url == null ? undefined : String(row.image_url),
 })
 
-const mapIncomeRow = (row: Record<string, unknown>): IncomeRecord => ({
+const mapIncomeRow = (
+  row: Record<string, unknown>,
+): IncomeRecord => ({
   id: Number(row.id),
   source: String(row.source ?? ""),
   amount: Number(row.amount ?? 0),
@@ -109,46 +117,58 @@ const mapIncomeRow = (row: Record<string, unknown>): IncomeRecord => ({
 
 export function HomePage() {
   const { user } = useAuth()
+
   const [orders, setOrders] = useState<OrderRecord[]>([])
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([])
   const [savingGoals, setSavingGoals] = useState<SavingGoalRecord[]>([])
   const [paylaters, setPaylaters] = useState<PayLaterRecord[]>([])
   const [incomes, setIncomes] = useState<IncomeRecord[]>([])
+
   const [isSalaryOpen, setIsSalaryOpen] = useState(false)
   const [isExpenseOpen, setIsExpenseOpen] = useState(false)
   const [isOrderOpen, setIsOrderOpen] = useState(false)
   const [isPaylaterOpen, setIsPaylaterOpen] = useState(false)
+
   const [salaryAmount, setSalaryAmount] = useState("")
 
   const loadHome = async () => {
-    const [orderResult, expenseResult, goalResult, paylaterResult, incomeResult] =
-      await Promise.all([
-        supabase
-          .from("orders")
-          .select("*")
-          .eq("user_id", user?.id ?? "")
-          .order("id", { ascending: true }),
-        supabase
-          .from("expenses")
-          .select("*")
-          .eq("user_id", user?.id ?? "")
-          .order("id", { ascending: true }),
-        supabase
-          .from("saving_goals")
-          .select("*")
-          .eq("user_id", user?.id ?? "")
-          .order("id", { ascending: true }),
-        supabase
-          .from("paylaters")
-          .select("*")
-          .eq("user_id", user?.id ?? "")
-          .order("id", { ascending: true }),
-        supabase
-          .from("incomes")
-          .select("*")
-          .eq("user_id", user?.id ?? "")
-          .order("id", { ascending: true }),
-      ])
+    const [
+      orderResult,
+      expenseResult,
+      goalResult,
+      paylaterResult,
+      incomeResult,
+    ] = await Promise.all([
+      supabase
+        .from("orders")
+        .select("*")
+        .eq("user_id", user?.id ?? "")
+        .order("id", { ascending: true }),
+
+      supabase
+        .from("expenses")
+        .select("*")
+        .eq("user_id", user?.id ?? "")
+        .order("id", { ascending: true }),
+
+      supabase
+        .from("saving_goals")
+        .select("*")
+        .eq("user_id", user?.id ?? "")
+        .order("id", { ascending: true }),
+
+      supabase
+        .from("paylaters")
+        .select("*")
+        .eq("user_id", user?.id ?? "")
+        .order("id", { ascending: true }),
+
+      supabase
+        .from("incomes")
+        .select("*")
+        .eq("user_id", user?.id ?? "")
+        .order("id", { ascending: true }),
+    ])
 
     if (orderResult.error) throw orderResult.error
     if (expenseResult.error) throw expenseResult.error
@@ -156,11 +176,25 @@ export function HomePage() {
     if (paylaterResult.error) throw paylaterResult.error
     if (incomeResult.error) throw incomeResult.error
 
-    setOrders((orderResult.data ?? []).map((row) => mapOrderRow(row)))
-    setExpenses((expenseResult.data ?? []).map((row) => mapExpenseRow(row)))
-    setSavingGoals((goalResult.data ?? []).map((row) => mapSavingGoalRow(row)))
-    setPaylaters((paylaterResult.data ?? []).map((row) => mapPaylaterRow(row)))
-    setIncomes((incomeResult.data ?? []).map((row) => mapIncomeRow(row)))
+    setOrders(
+      (orderResult.data ?? []).map((row) => mapOrderRow(row)),
+    )
+
+    setExpenses(
+      (expenseResult.data ?? []).map((row) => mapExpenseRow(row)),
+    )
+
+    setSavingGoals(
+      (goalResult.data ?? []).map((row) => mapSavingGoalRow(row)),
+    )
+
+    setPaylaters(
+      (paylaterResult.data ?? []).map((row) => mapPaylaterRow(row)),
+    )
+
+    setIncomes(
+      (incomeResult.data ?? []).map((row) => mapIncomeRow(row)),
+    )
   }
 
   useEffect(() => {
@@ -185,49 +219,107 @@ export function HomePage() {
     }
   }, [user])
 
+  /*
+   * TOTAL INCOME
+   */
   const incomeTotal = useMemo(
-    () => incomes.reduce((sum, income) => sum + income.amount, 0),
-    [incomes],
-  )
-  const totalBalance = useMemo(
     () =>
-      incomeTotal +
-      orders.reduce((sum, order) => sum + order.saved, 0) -
-      expenses.reduce((sum, expense) => sum + expense.amount, 0) -
-      savingGoals.reduce((sum, goal) => sum + goal.saved, 0),
-    [expenses, incomeTotal, orders, savingGoals],
-  )
-
-  const reservedOrders = useMemo(
-    () =>
-      orders.reduce(
-        (sum, order) => sum + (order.amount ?? order.reserved ?? order.saved),
+      incomes.reduce(
+        (sum, income) => sum + income.amount,
         0,
       ),
-    [orders],
-  )
-  const paylaterDue = useMemo(
-    () => paylaters.reduce((sum, paylater) => sum + paylater.monthlyPayment, 0),
-    [paylaters],
-  )
-  const paylaterOutstanding = useMemo(
-    () => paylaters.reduce((sum, paylater) => sum + paylater.totalAmount, 0),
-    [paylaters],
-  )
-  const available = useMemo(
-    () => Math.max(0, totalBalance - reservedOrders - paylaterOutstanding),
-    [paylaterOutstanding, reservedOrders, totalBalance],
+    [incomes],
   )
 
-  const forOrders = useMemo(
-    () => orders.reduce((sum, order) => sum + order.target, 0),
+  /*
+   * TOTAL EXPENSES
+   */
+  const expenseTotal = useMemo(
+    () =>
+      expenses.reduce(
+        (sum, expense) => sum + expense.amount,
+        0,
+      ),
+    [expenses],
+  )
+
+  /*
+   * NET BALANCE
+   *
+   * Example:
+   * Income = ₱500
+   * Expenses = ₱800
+   * Balance = -₱300
+   */
+  const totalBalance = useMemo(
+    () => incomeTotal - expenseTotal,
+    [incomeTotal, expenseTotal],
+  )
+
+  /*
+   * ORDER COUNT
+   */
+  const orderCount = useMemo(
+    () => orders.length,
     [orders],
   )
+
+  /*
+   * PAYLATER COUNT
+   */
+  const paylaterCount = useMemo(
+    () => paylaters.length,
+    [paylaters],
+  )
+
+  /*
+   * PAYLATER MONTHLY TOTAL
+   *
+   * Kept internally in case it is needed later.
+   */
+  const paylaterDue = useMemo(
+    () =>
+      paylaters.reduce(
+        (sum, paylater) =>
+          sum + paylater.monthlyPayment,
+        0,
+      ),
+    [paylaters],
+  )
+
+  /*
+   * SAVINGS
+   */
   const savings = useMemo(
-    () => savingGoals.reduce((sum, goal) => sum + goal.saved, 0),
+    () =>
+      savingGoals.reduce(
+        (sum, goal) => sum + goal.saved,
+        0,
+      ),
     [savingGoals],
   )
-  const todaySpending = useMemo(() => {
+
+  /*
+   * TODAY'S INCOME
+   */
+  const todayIncome = useMemo(() => {
+    const today = new Date().toDateString()
+
+    return incomes.reduce((sum, income) => {
+      const incomeDate = new Date(
+        income.createdAt,
+      ).toDateString()
+
+      return incomeDate === today
+        ? sum + income.amount
+        : sum
+    }, 0)
+  }, [incomes])
+
+  /*
+   * TODAY'S EXPENSES
+   */
+  const todayExpenses = useMemo(() => {
     const today = new Date().toDateString()
 
     return expenses.reduce((sum, expense) => {
@@ -235,44 +327,84 @@ export function HomePage() {
         return sum + expense.amount
       }
 
-      const expenseDate = new Date(expense.time).toDateString()
-      return expenseDate === today ? sum + expense.amount : sum
+      const expenseDate = new Date(
+        expense.time,
+      ).toDateString()
+
+      return expenseDate === today
+        ? sum + expense.amount
+        : sum
     }, 0)
   }, [expenses])
+
+  /*
+   * TODAY'S NET
+   *
+   * Example:
+   * Today income = ₱500
+   * Today expenses = ₱800
+   * Result = -₱300
+   */
+  const todayNet = useMemo(
+    () => todayIncome - todayExpenses,
+    [todayIncome, todayExpenses],
+  )
+
+  /*
+   * RECENT TRANSACTIONS
+   */
   const recentTransactions = useMemo(() => {
-    const expenseTransactions = expenses.map((expense) => ({
-      id: `expense-${expense.id}`,
-      name: expense.name,
-      category: expense.category,
-      amount: expense.amount,
-      time: expense.time,
-      type: "expense" as const,
-      date: new Date(expense.time).getTime(),
-    }))
+    const expenseTransactions = expenses.map(
+      (expense) => ({
+        id: `expense-${expense.id}`,
+        name: expense.name,
+        category: expense.category,
+        amount: expense.amount,
+        time: expense.time,
+        type: "expense" as const,
+        date: new Date(expense.time).getTime(),
+      }),
+    )
 
-    const incomeTransactions = incomes.map((income) => ({
-      id: `income-${income.id}`,
-      name: income.source,
-      category: "Income",
-      amount: income.amount,
-      time: income.createdAt,
-      type: "income" as const,
-      date: new Date(income.createdAt).getTime(),
-    }))
+    const incomeTransactions = incomes.map(
+      (income) => ({
+        id: `income-${income.id}`,
+        name: income.source,
+        category: "Income",
+        amount: income.amount,
+        time: income.createdAt,
+        type: "income" as const,
+        date: new Date(
+          income.createdAt,
+        ).getTime(),
+      }),
+    )
 
-    return [...expenseTransactions, ...incomeTransactions]
+    return [
+      ...expenseTransactions,
+      ...incomeTransactions,
+    ]
       .sort((a, b) => b.date - a.date)
       .slice(0, 3)
   }, [expenses, incomes])
 
+  /*
+   * ADD SALARY
+   */
   const handleSalarySubmit = async () => {
-    const parsedAmount = Number(salaryAmount.replace(/[^0-9.]/g, ""))
+    const parsedAmount = Number(
+      salaryAmount.replace(/[^0-9.]/g, ""),
+    )
 
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    if (
+      !Number.isFinite(parsedAmount) ||
+      parsedAmount <= 0
+    ) {
       return
     }
 
     const createdAt = new Date().toISOString()
+
     const { data, error } = await supabase
       .from("incomes")
       .insert({
@@ -297,19 +429,26 @@ export function HomePage() {
         createdAt: data.created_at,
       },
     ])
+
     setSalaryAmount("")
     setIsSalaryOpen(false)
   }
 
+  /*
+   * ADD EXPENSE
+   */
   const handleExpenseSubmit = async (payload: {
     name: string
     amount: number
     category: string
   }) => {
-    const time = `Today, ${new Intl.DateTimeFormat("en-PH", {
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(new Date())}`
+    const time = `Today, ${new Intl.DateTimeFormat(
+      "en-PH",
+      {
+        hour: "numeric",
+        minute: "2-digit",
+      },
+    ).format(new Date())}`
 
     const { data, error } = await supabase
       .from("expenses")
@@ -337,10 +476,17 @@ export function HomePage() {
         time: data.time,
       },
     ])
+
     setIsExpenseOpen(false)
   }
 
-  const handleOrderSubmit = async (payload: { name: string; amount: number }) => {
+  /*
+   * ADD ORDER
+   */
+  const handleOrderSubmit = async (payload: {
+    name: string
+    amount: number
+  }) => {
     const { data, error } = await supabase
       .from("orders")
       .insert({
@@ -368,28 +514,43 @@ export function HomePage() {
         saved: Number(data.saved),
         progress: Number(data.progress),
         due: data.due,
-        amount: data.amount == null ? undefined : Number(data.amount),
-        reserved: data.reserved == null ? undefined : Number(data.reserved),
+        amount:
+          data.amount == null
+            ? undefined
+            : Number(data.amount),
+        reserved:
+          data.reserved == null
+            ? undefined
+            : Number(data.reserved),
       },
     ])
+
     setIsOrderOpen(false)
   }
 
+  /*
+   * ADD PAYLATER
+   */
   const handlePaylaterSubmit = async (payload: {
     name: string
     months: number
     monthlyPayment: number
     imageUrl?: string
   }) => {
-    const totalAmount = payload.months * payload.monthlyPayment
+    const totalAmount =
+      payload.months *
+      payload.monthlyPayment
+
     const { data, error } = await supabase
       .from("paylaters")
       .insert({
         name: payload.name,
         months: payload.months,
-        monthly_payment: payload.monthlyPayment,
+        monthly_payment:
+          payload.monthlyPayment,
         total_amount: totalAmount,
-        image_url: payload.imageUrl ?? null,
+        image_url:
+          payload.imageUrl ?? null,
         user_id: user?.id,
       })
       .select()
@@ -405,18 +566,27 @@ export function HomePage() {
         id: data.id,
         name: data.name,
         months: data.months,
-        monthlyPayment: Number(data.monthly_payment),
-        totalAmount: Number(data.total_amount),
-        imageUrl: data.image_url ?? undefined,
+        monthlyPayment: Number(
+          data.monthly_payment,
+        ),
+        totalAmount: Number(
+          data.total_amount,
+        ),
+        imageUrl:
+          data.image_url ?? undefined,
       },
     ])
+
     setIsPaylaterOpen(false)
   }
 
   return (
     <div className="space-y-2">
-      <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+      <h1 className="text-2xl font-bold text-slate-900">
+        Dashboard
+      </h1>
 
+      {/* TOTAL BALANCE */}
       <Card className="overflow-hidden border-slate-200 bg-white py-4 shadow-sm">
         <CardContent className="space-y-2">
           <div className="flex items-start justify-between gap-4">
@@ -424,7 +594,14 @@ export function HomePage() {
               <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                 <span>Total Balance</span>
               </div>
-              <p className="text-4xl font-bold tracking-tight text-slate-900">
+
+              <p
+                className={`text-4xl font-bold tracking-tight ${totalBalance >= 0
+                    ? "text-emerald-600"
+                    : "text-rose-500"
+                  }`}
+              >
+                {totalBalance >= 0 ? "+" : "-"}
                 {formatCurrency(totalBalance)}
               </p>
             </div>
@@ -442,76 +619,121 @@ export function HomePage() {
           <Separator className="bg-slate-200" />
 
           <div className="flex items-stretch gap-0 text-center">
+            {/* NET BALANCE */}
             <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
               <div className="rounded-2xl bg-slate-100 p-2">
-                <Wallet className="h-5 w-5 text-emerald-300" />
+                <Wallet
+                  className={`h-5 w-5 ${totalBalance >= 0
+                      ? "text-emerald-300"
+                      : "text-rose-300"
+                    }`}
+                />
               </div>
+
               <span className="text-2xs font-medium leading-none whitespace-nowrap text-muted-foreground">
-                Available
+                Balance
               </span>
-              <span className="text-sm font-medium tracking-tight text-slate-900">
-                {formatCurrency(available)}
+
+              <span
+                className={`text-sm font-medium tracking-tight ${totalBalance >= 0
+                    ? "text-emerald-600"
+                    : "text-rose-500"
+                  }`}
+              >
+                {totalBalance >= 0 ? "+" : "-"}
+                {formatCurrency(totalBalance)}
               </span>
             </div>
+
             <Separator
               orientation="vertical"
               className="mx-1 h-20 self-center bg-slate-200"
             />
+
+            {/* ORDERS */}
             <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
               <div className="rounded-2xl bg-slate-100 p-2">
                 <ShoppingBag className="h-5 w-5 text-amber-300" />
               </div>
+
               <span className="text-2xs font-medium leading-none whitespace-nowrap text-muted-foreground">
-                For Orders
+                Orders
               </span>
+
               <span className="text-sm font-medium tracking-tight text-slate-900">
-                {formatCurrency(forOrders)}
+                {orderCount}
               </span>
             </div>
+
             <Separator
               orientation="vertical"
               className="mx-1 h-20 self-center bg-slate-200"
             />
+
+            {/* SAVINGS */}
             <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
               <div className="rounded-2xl bg-slate-100 p-2">
                 <PiggyBank className="h-5 w-5 text-violet-300" />
               </div>
+
               <span className="text-2xs font-medium leading-none whitespace-nowrap text-muted-foreground">
                 Savings
               </span>
+
               <span className="text-sm font-medium tracking-tight text-slate-900">
                 {formatCurrency(savings)}
               </span>
             </div>
+
             <Separator
               orientation="vertical"
               className="mx-1 h-20 self-center bg-slate-200"
             />
+
+            {/* PAYLATER */}
             <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
               <div className="rounded-2xl bg-slate-100 p-2">
                 <WalletCards className="h-5 w-5 text-rose-300" />
               </div>
+
               <span className="text-2xs font-medium leading-none whitespace-nowrap text-muted-foreground">
-                Paylater Monthly
+                PayLater
               </span>
+
               <span className="text-sm font-medium tracking-tight text-slate-900">
-                {formatCurrency(paylaterDue)}
+                {paylaterCount}
               </span>
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* QUICK ACTIONS */}
       <div className="grid grid-cols-4 gap-1">
-        <AddSalaryAction onClick={() => setIsSalaryOpen(true)} />
-        <AddExpenseAction onClick={() => setIsExpenseOpen(true)} />
-        <AddOrderAction onClick={() => setIsOrderOpen(true)} />
-        <AddPaylaterAction onClick={() => setIsPaylaterOpen(true)} />
+        <AddSalaryAction
+          onClick={() => setIsSalaryOpen(true)}
+        />
+
+        <AddExpenseAction
+          onClick={() => setIsExpenseOpen(true)}
+        />
+
+        <AddOrderAction
+          onClick={() => setIsOrderOpen(true)}
+        />
+
+        <AddPaylaterAction
+          onClick={() => setIsPaylaterOpen(true)}
+        />
       </div>
 
+      {/* MY TRACKERS */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-900">My Trackers</h2>
+          <h2 className="text-base font-semibold text-slate-900">
+            My Trackers
+          </h2>
+
           <Button
             type="button"
             variant="ghost"
@@ -522,266 +744,121 @@ export function HomePage() {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
+         
+          {/* ORDERS */}
           <Card className="border-slate-200 bg-white py-2 shadow-sm">
             <CardContent className="space-y-2 px-2">
               <div className="flex items-center gap-2">
                 <div className="rounded-2xl bg-blue-500/10 p-2 text-blue-600">
                   <ShoppingBag className="h-4 w-4" />
                 </div>
+
                 <div className="min-w-0 flex-1">
-                  <p className="text-md font-semibold text-slate-900">Order</p>
+                  <p className="text-md font-semibold text-slate-900">
+                    Order
+                  </p>
                 </div>
               </div>
 
-              {orders.length > 0 ? (
-                <>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-xs font-bold tracking-tight text-blue-600">
-                        {formatCurrency(
-                          orders.reduce((sum, order) => sum + order.saved, 0),
-                        )}{" "}
-                        <span className="text-slate-400">
-                          / {formatCurrency(
-                            orders.reduce((sum, order) => sum + order.target, 0),
-                          )}
-                        </span>
-                      </span>
-                    </div>
-                    <div className="h-2 rounded-full bg-slate-200">
-                      <div
-                        className="h-2 rounded-full bg-blue-500"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            orders.reduce((sum, order) => sum + order.progress, 0) /
-                            Math.max(1, orders.length),
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <p className="text-2xs text-slate-500">
-                    Need{" "}
-                    {formatCurrency(
-                      Math.max(
-                        0,
-                        orders.reduce((sum, order) => sum + order.target - order.saved, 0),
-                      ),
-                    )}{" "}
-                    more
-                  </p>
-                </>
-              ) : (
-                <EmptyStateCard
-                  icon={ShoppingBag}
-                  iconClassName="bg-blue-500/10 text-blue-600"
-                  title="No trackers yet"
-                  description="Start by adding your first goal."
-                />
-              )}
+              <div className="flex min-h-[50px] flex-col items-center justify-center text-center">
+                <p className="text-3xl font-bold tracking-tight text-blue-600">
+                  {orderCount}
+                </p>
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="py-2">
+
+          {/* PAYLATER */}
+          <Card className="border-slate-200 bg-white py-2 shadow-sm">
             <CardContent className="space-y-2 px-2">
               <div className="flex items-center gap-2">
                 <div className="rounded-2xl bg-rose-500/10 p-2 text-rose-500">
                   <CreditCard className="h-4 w-4" />
                 </div>
+
                 <div className="min-w-0 flex-1">
-                  <p className="text-md font-semibold text-slate-900">PayLater</p>
+                  <p className="text-md font-semibold text-slate-900">
+                    PayLater
+                  </p>
                 </div>
               </div>
 
-              {paylaters.length > 0 ? (
-                <div className="overflow-hidden rounded-xl border border-slate-200">
-                  {paylaters.map((paylater, index, items) => (
-                    <div key={paylater.id ?? `${paylater.name}-${index}`}>
-                      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3">
-                        <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-dashed border-rose-200 bg-rose-50 text-rose-400">
-                          {paylater.imageUrl ? (
-                            <img
-                              src={paylater.imageUrl}
-                              alt={paylater.name}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-sm font-semibold">
-                              {paylater.name.trim().charAt(0).toUpperCase() || "?"}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="min-w-0 space-y-1">
-                          <p className="truncate text-xs font-semibold text-slate-900">
-                            {paylater.name}
-                          </p>
-                          <p className="text-2xs text-muted-foreground">
-                            {paylater.months} months
-                          </p>
-                        </div>
-
-                        <div className="space-y-1 text-right">
-                          <p className="text-xs font-semibold tracking-tight text-slate-900">
-                            {formatCurrency(paylater.monthlyPayment)}
-                          </p>
-                          <p className="text-2xs text-muted-foreground">
-                            / {formatCurrency(paylater.totalAmount)}
-                          </p>
-                        </div>
-                      </div>
-
-                      {index < items.length - 1 ? (
-                        <Separator className="bg-slate-200" />
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <EmptyStateCard
-                  icon={CreditCard}
-                  iconClassName="bg-rose-500/10 text-rose-500"
-                  title="No trackers yet"
-                  description="Start by adding your first goal."
-                />
-              )}
+              <div className="flex min-h-[50px] flex-col items-center justify-center text-center">
+                <p className="text-3xl font-bold tracking-tight text-rose-500">
+                  {paylaterCount}
+                </p>
+              </div>
             </CardContent>
           </Card>
 
+
+          {/* TODAY */}
           <Card className="border-slate-200 bg-white py-2 shadow-sm">
-            <CardContent className="space-y-2 p-2">
+            <CardContent className="space-y-2 px-2">
               <div className="flex items-center gap-2">
                 <div className="rounded-2xl bg-emerald-500/10 p-2 text-emerald-600">
                   <ClipboardList className="h-4 w-4" />
                 </div>
+
                 <div className="min-w-0 flex-1">
-                  <p className="text-md font-semibold text-slate-900">Today</p>
+                  <p className="text-md font-semibold text-slate-900">
+                    Today
+                  </p>
                 </div>
               </div>
 
-              {todaySpending > 0 ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-xs font-bold tracking-tight text-emerald-600">
-                      {formatCurrency(todaySpending)}{" "}
-                      <span className="text-slate-400">
-                        / {formatCurrency(expenses.reduce((sum, expense) => sum + expense.amount, 0))}
-                      </span>
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-200">
-                    <div
-                      className="h-2 rounded-full bg-emerald-500"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          (todaySpending /
-                            Math.max(
-                              1,
-                              expenses.reduce((sum, expense) => sum + expense.amount, 0),
-                            )) *
-                          100,
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <EmptyStateCard
-                  icon={ClipboardList}
-                  iconClassName="bg-emerald-500/10 text-emerald-600"
-                  title="No transactions yet"
-                  description="Add your first expense or income."
-                />
-              )}
-
-              {todaySpending > 0 ? (
-                <p className="text-2xs text-slate-500">
-                  Remaining today: {formatCurrency(
-                    Math.max(
-                      0,
-                      expenses.reduce((sum, expense) => sum + expense.amount, 0) - todaySpending,
-                    ),
-                  )}
+              <div className="flex min-h-[50px] flex-col items-center justify-center text-center">
+                <p
+                  className={`text-3xl font-bold tracking-tight ${todayNet > 0
+                      ? "text-emerald-600"
+                      : todayNet < 0
+                        ? "text-rose-500"
+                        : "text-slate-900"
+                    }`}
+                >
+                  {todayNet > 0 ? "+" : todayNet < 0 ? "-" : ""}
+                  {formatCurrency(todayNet)}
                 </p>
-              ) : null}
+              </div>
             </CardContent>
           </Card>
 
+
+          {/* SAVINGS */}
           <Card className="border-slate-200 bg-white py-2 shadow-sm">
-            <CardContent className="space-y-2 p-2">
+            <CardContent className="space-y-2 px-2">
               <div className="flex items-center gap-2">
                 <div className="rounded-2xl bg-violet-500/10 p-2 text-violet-600">
                   <PiggyBank className="h-4 w-4" />
                 </div>
+
                 <div className="min-w-0 flex-1">
-                  <p className="text-md font-semibold text-slate-900">Savings</p>
+                  <p className="text-md font-semibold text-slate-900">
+                    Savings
+                  </p>
                 </div>
               </div>
 
-              {savingGoals.length > 0 ? (
-                <>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-xs font-bold tracking-tight text-violet-600">
-                        {formatCurrency(
-                          savingGoals.reduce((sum, goal) => sum + goal.saved, 0),
-                        )}{" "}
-                        <span className="text-slate-400">
-                          / {formatCurrency(
-                            savingGoals.reduce((sum, goal) => sum + goal.target, 0),
-                          )}
-                        </span>
-                      </span>
-                    </div>
-                    <div className="h-2 rounded-full bg-slate-200">
-                      <div
-                        className="h-2 rounded-full bg-violet-500"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            (savingGoals.reduce((sum, goal) => sum + goal.saved, 0) /
-                              Math.max(
-                                1,
-                                savingGoals.reduce((sum, goal) => sum + goal.target, 0),
-                              )) *
-                            100,
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <p className="text-2xs text-slate-500">
-                    Remaining:{" "}
-                    {formatCurrency(
-                      Math.max(
-                        0,
-                        savingGoals.reduce((sum, goal) => sum + goal.target - goal.saved, 0),
-                      ),
-                    )}
-                  </p>
-                </>
-              ) : (
-                <EmptyStateCard
-                  icon={PiggyBank}
-                  iconClassName="bg-violet-500/10 text-violet-600"
-                  title="No trackers yet"
-                  description="Start by adding your first goal."
-                />
-              )}
+              <div className="flex min-h-[50px] flex-col items-center justify-center text-center">
+                <p className="text-3xl font-bold tracking-tight text-violet-600">
+                  {formatCurrency(savings)}
+                </p>
+              </div>
             </CardContent>
           </Card>
+         
+
         </div>
       </section>
 
+      {/* RECENT TRANSACTIONS */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-900">
             Recent Transactions
           </h2>
+
           <Button
             type="button"
             variant="ghost"
@@ -794,68 +871,87 @@ export function HomePage() {
         <Card className="py-0">
           <CardContent className="p-0">
             {recentTransactions.length > 0 ? (
-              recentTransactions.map((transaction, index) => {
-                const isIncome = transaction.type === "income"
+              recentTransactions.map(
+                (transaction, index) => {
+                  const isIncome =
+                    transaction.type ===
+                    "income"
 
-                return (
-                  <div key={transaction.id}>
-                    <div className="flex items-center gap-3 px-4 py-4">
-                      {/* Icon */}
-                      <div
-                        className={
-                          isIncome
-                            ? "rounded-full bg-emerald-500/10 p-3 text-emerald-600"
-                            : "rounded-full bg-rose-500/10 p-3 text-rose-500"
-                        }
-                      >
-                        {isIncome ? (
-                          <Wallet className="h-5 w-5" />
-                        ) : (
-                          <HandPlatter className="h-5 w-5" />
-                        )}
-                      </div>
-
-                      {/* Transaction information */}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-900">
-                          {transaction.name}
-                        </p>
-
-                        <p className="text-xs font-medium text-muted-foreground">
-                          {transaction.category}
-                        </p>
-                      </div>
-
-                      {/* Amount */}
-                      <div className="text-right">
-                        <p
+                  return (
+                    <div
+                      key={transaction.id}
+                    >
+                      <div className="flex items-center gap-3 px-4 py-4">
+                        {/* ICON */}
+                        <div
                           className={
                             isIncome
-                              ? "text-sm font-bold tracking-tight text-emerald-600"
-                              : "text-sm font-bold tracking-tight text-rose-500"
+                              ? "rounded-full bg-emerald-500/10 p-3 text-emerald-600"
+                              : "rounded-full bg-rose-500/10 p-3 text-rose-500"
                           }
                         >
-                          {isIncome ? "+" : "-"}
-                          {formatCurrency(transaction.amount)}
-                        </p>
+                          {isIncome ? (
+                            <Wallet className="h-5 w-5" />
+                          ) : (
+                            <HandPlatter className="h-5 w-5" />
+                          )}
+                        </div>
 
-                        <p className="text-xs font-medium text-muted-foreground">
-                          {new Date(transaction.time).toLocaleString("en-PH", {
-                            month: "short",
-                            day: "numeric",
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </p>
+                        {/* INFORMATION */}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-slate-900">
+                            {transaction.name}
+                          </p>
+
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {transaction.category}
+                          </p>
+                        </div>
+
+                        {/* AMOUNT */}
+                        <div className="text-right">
+                          <p
+                            className={
+                              isIncome
+                                ? "text-sm font-bold tracking-tight text-emerald-600"
+                                : "text-sm font-bold tracking-tight text-rose-500"
+                            }
+                          >
+                            {isIncome
+                              ? "+"
+                              : "-"}
+                            {formatCurrency(
+                              transaction.amount,
+                            )}
+                          </p>
+
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {new Date(
+                              transaction.time,
+                            ).toLocaleString(
+                              "en-PH",
+                              {
+                                month:
+                                  "short",
+                                day: "numeric",
+                                hour: "numeric",
+                                minute:
+                                  "2-digit",
+                              },
+                            )}
+                          </p>
+                        </div>
                       </div>
-                    </div>
 
-                    {index < recentTransactions.length - 1 ? (
-                      <Separator className="bg-slate-200" />
-                    ) : null}
-                  </div>
-                )
-              })
+                      {index <
+                        recentTransactions.length -
+                        1 ? (
+                        <Separator className="bg-slate-200" />
+                      ) : null}
+                    </div>
+                  )
+                },
+              )
             ) : (
               <div className="px-4 py-6">
                 <EmptyStateCard
@@ -870,31 +966,41 @@ export function HomePage() {
         </Card>
       </section>
 
+      {/* DIALOGS */}
       <SalaryDialog
         open={isSalaryOpen}
         amount={salaryAmount}
         onOpenChange={setIsSalaryOpen}
         onAmountChange={setSalaryAmount}
-        onSubmit={() => void handleSalarySubmit()}
+        onSubmit={() =>
+          void handleSalarySubmit()
+        }
       />
 
       <AddExpenseDialog
         open={isExpenseOpen}
         onOpenChange={setIsExpenseOpen}
-        onSubmit={(payload) => void handleExpenseSubmit(payload)}
+        onSubmit={(payload) =>
+          void handleExpenseSubmit(payload)
+        }
       />
 
       <AddOrderDialog
         open={isOrderOpen}
         onOpenChange={setIsOrderOpen}
-        onSubmit={(payload) => void handleOrderSubmit(payload)}
+        onSubmit={(payload) =>
+          void handleOrderSubmit(payload)
+        }
       />
 
       <AddPaylaterDialog
         open={isPaylaterOpen}
         onOpenChange={setIsPaylaterOpen}
-        onSubmit={(payload) => void handlePaylaterSubmit(payload)}
+        onSubmit={(payload) =>
+          void handlePaylaterSubmit(payload)
+        }
       />
     </div>
   )
 }
+
